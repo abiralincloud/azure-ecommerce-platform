@@ -1,0 +1,260 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.47.16.16243",
+      "templateHash": "14862046585804382237"
+    }
+  },
+  "parameters": {
+    "adminSshPublicKey": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "location": "eastus",
+    "subnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet-commerce', 'snet-web')]",
+    "webNsgId": "[resourceId('Microsoft.Network/networkSecurityGroups', 'nsg-commerce-web')]",
+    "loadBalancerBackendPoolId": "[resourceId('Microsoft.Network/loadBalancers/backendAddressPools', 'lb-commerce-web', 'bepool')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-commerce-web-vmss",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "vmssName": {
+            "value": "vmss-commerce-web"
+          },
+          "subnetId": {
+            "value": "[variables('subnetId')]"
+          },
+          "networkSecurityGroupId": {
+            "value": "[variables('webNsgId')]"
+          },
+          "loadBalancerBackendPoolId": {
+            "value": "[variables('loadBalancerBackendPoolId')]"
+          },
+          "adminUsername": {
+            "value": "azureuser"
+          },
+          "adminSshPublicKey": {
+            "value": "[parameters('adminSshPublicKey')]"
+          },
+          "instanceCount": {
+            "value": 2
+          },
+          "vmSize": {
+            "value": "Standard_F1als_v7"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "4970625284834099598"
+            }
+          },
+          "parameters": {
+            "vmssName": {
+              "type": "string",
+              "defaultValue": "vmss-commerce-web",
+              "metadata": {
+                "description": "VMSS name"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "eastus",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing web subnet resource ID"
+              }
+            },
+            "networkSecurityGroupId": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing web NSG resource ID"
+              }
+            },
+            "loadBalancerBackendPoolId": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing Load Balancer backend pool resource ID"
+              }
+            },
+            "adminUsername": {
+              "type": "string",
+              "defaultValue": "azureuser",
+              "metadata": {
+                "description": "Linux administrator username"
+              }
+            },
+            "adminSshPublicKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "SSH public key for the administrator"
+              }
+            },
+            "instanceCount": {
+              "type": "int",
+              "defaultValue": 2,
+              "metadata": {
+                "description": "Number of VMSS instances"
+              }
+            },
+            "vmSize": {
+              "type": "string",
+              "defaultValue": "Standard_F1als_v7",
+              "metadata": {
+                "description": "VM size"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Compute/virtualMachineScaleSets",
+              "apiVersion": "2024-07-01",
+              "name": "[parameters('vmssName')]",
+              "location": "[parameters('location')]",
+              "zones": [
+                "1",
+                "2"
+              ],
+              "sku": {
+                "name": "[parameters('vmSize')]",
+                "tier": "Standard",
+                "capacity": "[parameters('instanceCount')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "orchestrationMode": "Uniform",
+                "upgradePolicy": {
+                  "mode": "Manual"
+                },
+                "overprovision": false,
+                "virtualMachineProfile": {
+                  "osProfile": {
+                    "computerNamePrefix": "commerceweb",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "linuxConfiguration": {
+                      "disablePasswordAuthentication": true,
+                      "ssh": {
+                        "publicKeys": [
+                          {
+                            "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                            "keyData": "[parameters('adminSshPublicKey')]"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "storageProfile": {
+                    "imageReference": {
+                      "publisher": "Canonical",
+                      "offer": "ubuntu-24_04-lts",
+                      "sku": "server",
+                      "version": "latest"
+                    },
+                    "osDisk": {
+                      "createOption": "FromImage",
+                      "diskSizeGB": 30,
+                      "managedDisk": {
+                        "storageAccountType": "Premium_LRS"
+                      },
+                      "caching": "ReadWrite"
+                    }
+                  },
+                  "networkProfile": {
+                    "networkInterfaceConfigurations": [
+                      {
+                        "name": "vnet-commerce-nic01",
+                        "properties": {
+                          "primary": true,
+                          "enableAcceleratedNetworking": true,
+                          "networkSecurityGroup": {
+                            "id": "[parameters('networkSecurityGroupId')]"
+                          },
+                          "ipConfigurations": [
+                            {
+                              "name": "vnet-commerce-nic01-defaultIpConfiguration",
+                              "properties": {
+                                "primary": true,
+                                "privateIPAddressVersion": "IPv4",
+                                "subnet": {
+                                  "id": "[parameters('subnetId')]"
+                                },
+                                "loadBalancerBackendAddressPools": [
+                                  {
+                                    "id": "[parameters('loadBalancerBackendPoolId')]"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                      "enabled": true
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "vmssName": {
+              "type": "string",
+              "value": "[parameters('vmssName')]"
+            },
+            "vmssId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Compute/virtualMachineScaleSets', parameters('vmssName'))]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Compute/virtualMachineScaleSets', parameters('vmssName')), '2024-07-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "vmssName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-commerce-web-vmss'), '2025-04-01').outputs.vmssName.value]"
+    },
+    "vmssId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-commerce-web-vmss'), '2025-04-01').outputs.vmssId.value]"
+    },
+    "principalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-commerce-web-vmss'), '2025-04-01').outputs.principalId.value]"
+    }
+  }
+}
